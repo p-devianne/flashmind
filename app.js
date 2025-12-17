@@ -156,6 +156,9 @@ const elements = {
     topicList: document.getElementById('topicList'),
     addTopicBtn: document.getElementById('addTopicBtn'),
     themeToggle: document.getElementById('themeToggle'),
+    exportDataBtn: document.getElementById('exportDataBtn'),
+    importDataBtn: document.getElementById('importDataBtn'),
+    importFileInput: document.getElementById('importFileInput'),
 
     // Header
     headerTitle: document.getElementById('headerTitle'),
@@ -808,6 +811,17 @@ function setupEventListeners() {
     elements.sidebarOverlay.addEventListener('click', closeSidebar);
     elements.themeToggle.addEventListener('click', toggleTheme);
 
+    // Export/Import
+    elements.exportDataBtn.addEventListener('click', exportData);
+    elements.importDataBtn.addEventListener('click', triggerImport);
+    elements.importFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            importData(file);
+            e.target.value = ''; // Reset for next import
+        }
+    });
+
     // Topic list click delegation
     elements.topicList.addEventListener('click', (e) => {
         const topicItem = e.target.closest('.topic-item');
@@ -906,6 +920,233 @@ function setupEventListeners() {
             }
         }
     });
+}
+
+// =========================================
+// Export / Import Functions
+// =========================================
+
+async function exportData() {
+    try {
+        const topics = await dataStore.getAllTopics();
+        const allCards = [];
+
+        for (const topic of topics) {
+            const cards = await dataStore.getCardsByTopic(topic.id);
+            allCards.push(...cards);
+        }
+
+        const exportData = {
+            version: 1,
+            exportDate: new Date().toISOString(),
+            topics: topics,
+            cards: allCards
+        };
+
+        const jsonString = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `flashmind-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast(`Exported ${topics.length} topics and ${allCards.length} cards`, 'success');
+        closeSidebar();
+    } catch (error) {
+        console.error('Export failed:', error);
+        showToast('Export failed. Please try again.', 'error');
+    }
+}
+
+async function importData(file) {
+    try {
+        const text = await file.text();
+        let importedData;
+
+        if (file.name.endsWith('.csv')) {
+            importedData = parseCSV(text);
+        } else {
+            importedData = JSON.parse(text);
+        }
+
+        // Validate structure
+        if (!importedData.topics || !importedData.cards) {
+            throw new Error('Invalid file format');
+        }
+
+        // Import topics
+        let topicsImported = 0;
+        let cardsImported = 0;
+
+        for (const topic of importedData.topics) {
+            // Check if topic with same ID exists
+            const existing = await dataStore.getTopic(topic.id);
+            if (!existing) {
+                await dataStore.saveTopic(topic);
+                topicsImported++;
+            }
+        }
+
+        // Import cards
+        for (const card of importedData.cards) {
+            const existing = await dataStore.getCard(card.id);
+            if (!existing) {
+                await dataStore.saveCard(card);
+                cardsImported++;
+            }
+        }
+
+        await renderTopicList();
+
+        if (topicsImported === 0 && cardsImported === 0) {
+            showToast('No new data to import (all items already exist)', 'info');
+        } else {
+            showToast(`Imported ${topicsImported} topics and ${cardsImported} cards`, 'success');
+        }
+
+        closeSidebar();
+    } catch (error) {
+        console.error('Import failed:', error);
+        showToast('Import failed. Please check the file format.', 'error');
+    }
+}
+
+function parseCSV(text) {
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) {
+        throw new Error('CSV file is empty or has no data rows');
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+
+    // Detect CSV type: topics or cards
+    if (headers.includes('question') && headers.includes('answer')) {
+        // Cards CSV
+        return parseCardsCSV(lines, headers);
+    } else if (headers.includes('name') || headers.includes('topic')) {
+        // Topics CSV
+        return parseTopicsCSV(lines, headers);
+    } else {
+        throw new Error('Unrecognized CSV format. Expected columns: question,answer or name,emoji');
+    }
+}
+
+function parseCardsCSV(lines, headers) {
+    const questionIdx = headers.indexOf('question');
+    const answerIdx = headers.indexOf('answer');
+    const topicIdx = headers.indexOf('topic');
+    const topicIdIdx = headers.indexOf('topicid');
+
+    const topics = [];
+    const cards = [];
+    const topicMap = new Map();
+
+    for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length < 2) continue;
+
+        const question = values[questionIdx] || '';
+        const answer = values[answerIdx] || '';
+        const topicName = topicIdx >= 0 ? values[topicIdx] : 'Imported';
+        let topicId = topicIdIdx >= 0 ? values[topicIdIdx] : null;
+
+        if (!question || !answer) continue;
+
+        // Create or get topic
+        if (!topicId) {
+            if (!topicMap.has(topicName)) {
+                topicId = generateId();
+                const topic = {
+                    id: topicId,
+                    name: topicName,
+                    emoji: '📥',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                topics.push(topic);
+                topicMap.set(topicName, topicId);
+            } else {
+                topicId = topicMap.get(topicName);
+            }
+        }
+
+        const card = {
+            id: generateId(),
+            topicId: topicId,
+            question: question,
+            answer: answer,
+            score: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        cards.push(card);
+    }
+
+    return { topics, cards };
+}
+
+function parseTopicsCSV(lines, headers) {
+    const nameIdx = headers.indexOf('name') >= 0 ? headers.indexOf('name') : headers.indexOf('topic');
+    const emojiIdx = headers.indexOf('emoji') >= 0 ? headers.indexOf('emoji') : headers.indexOf('icon');
+
+    const topics = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length < 1) continue;
+
+        const name = values[nameIdx] || '';
+        const emoji = emojiIdx >= 0 ? values[emojiIdx] : '📚';
+
+        if (!name) continue;
+
+        const topic = {
+            id: generateId(),
+            name: name.trim(),
+            emoji: emoji.trim() || '📚',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        topics.push(topic);
+    }
+
+    return { topics, cards: [] };
+}
+
+function parseCSVLine(line) {
+    const values = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i++;
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            values.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    values.push(current.trim());
+
+    return values;
+}
+
+function triggerImport() {
+    elements.importFileInput.click();
 }
 
 // =========================================
