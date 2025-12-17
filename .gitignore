@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated files (will be created by build)
+# icons/*.png - Keep these if you want to commit generated icons
+
+# Environment
+.env
+.env.local
+
+# Build output
+dist/
+build/

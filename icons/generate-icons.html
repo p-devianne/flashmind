@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FlashMind Icon Generator</title>
+    <style>
+        body { font-family: system-ui; padding: 20px; background: #1a1a1a; color: white; }
+        canvas { border: 1px solid #333; margin: 10px; background: white; }
+        .icons { display: flex; flex-wrap: wrap; gap: 10px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>FlashMind Icon Generator</h1>
+    <p>Click the button to download all icon sizes.</p>
+    <button onclick="generateAllIcons()">Generate & Download Icons</button>
+    <div class="icons" id="icons"></div>
+
+    <script>
+        const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+
+        function drawIcon(ctx, size) {
+            const scale = size / 512;
+            
+            // Background gradient
+            const bgGrad = ctx.createLinearGradient(0, 0, size, size);
+            bgGrad.addColorStop(0, '#818cf8');
+            bgGrad.addColorStop(1, '#6366f1');
+            
+            // Rounded rectangle background
+            ctx.fillStyle = bgGrad;
+            roundRect(ctx, 0, 0, size, size, 96 * scale);
+            ctx.fill();
+            
+            // Card gradient
+            const cardGrad = ctx.createLinearGradient(0, 0, size, size);
+            cardGrad.addColorStop(0, '#4f46e5');
+            cardGrad.addColorStop(1, '#4338ca');
+            
+            // Back card shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            roundRect(ctx, 120 * scale, 130 * scale, 280 * scale, 200 * scale, 20 * scale);
+            ctx.fill();
+            
+            // Back card
+            ctx.fillStyle = cardGrad;
+            roundRect(ctx, 140 * scale, 110 * scale, 280 * scale, 200 * scale, 20 * scale);
+            ctx.fill();
+            
+            // Front card
+            ctx.fillStyle = 'white';
+            roundRect(ctx, 92 * scale, 170 * scale, 280 * scale, 200 * scale, 20 * scale);
+            ctx.fill();
+            
+            // Card lines
+            ctx.fillStyle = '#e0e7ff';
+            roundRect(ctx, 132 * scale, 220 * scale, 160 * scale, 12 * scale, 6 * scale);
+            ctx.fill();
+            roundRect(ctx, 132 * scale, 252 * scale, 200 * scale, 12 * scale, 6 * scale);
+            ctx.fill();
+            roundRect(ctx, 132 * scale, 284 * scale, 120 * scale, 12 * scale, 6 * scale);
+            ctx.fill();
+            
+            // Plus button circle
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(400 * scale, 400 * scale, 56 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Plus icon
+            ctx.fillStyle = '#6366f1';
+            roundRect(ctx, 390 * scale, 364 * scale, 20 * scale, 72 * scale, 10 * scale);
+            ctx.fill();
+            roundRect(ctx, 364 * scale, 390 * scale, 72 * scale, 20 * scale, 10 * scale);
+            ctx.fill();
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        }
+
+        function generateAllIcons() {
+            const container = document.getElementById('icons');
+            container.innerHTML = '';
+            
+            sizes.forEach(size => {
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                
+                drawIcon(ctx, size);
+                
+                // Download
+                const link = document.createElement('a');
+                link.download = `icon-${size}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                // Display
+                container.appendChild(canvas);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+    "name": "flashmind",
+    "version": "1.0.0",
+    "description": "A modern flashcard app for effective studying",
+    "scripts": {
+        "generate-icons": "node scripts/generate-icons.js",
+        "build": "npm run generate-icons",
+        "start": "npx serve ."
+    },
+    "devDependencies": {
+        "@napi-rs/canvas": "^0.1.44",
+        "serve": "^14.2.1"
+    },
+    "author": "",
+    "license": "MIT"
+}
